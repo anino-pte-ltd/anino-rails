@@ -132,10 +132,12 @@ module ActionCable
         end
 
         def receive_ping
+          return unless @ready_state == OPEN
           @event_target.on_ping
         end
 
         def receive_pong
+          return unless @ready_state == OPEN
           @event_target.on_pong
         end
 
