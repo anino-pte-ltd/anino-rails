@@ -126,21 +126,16 @@ module ActionCable
         end
 
         def receive_message(data)
-          puts "RECEIVE MESSAGE"
           return unless @ready_state == OPEN
 
           @event_target.on_message(data)
         end
 
         def receive_ping
-          puts "HELLO"
-          return unless @ready_state == OPEN
           @event_target.on_ping
         end
 
         def receive_pong
-          puts "THERE"
-          return unless @ready_state == OPEN
           @event_target.on_pong
         end
 
