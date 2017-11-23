@@ -123,6 +123,7 @@ module ActionCable
         def open
           return unless @ready_state == CONNECTING
           @ready_state = OPEN
+          @last_ping = Time.now
 
           @event_target.on_open
         end
@@ -133,18 +134,15 @@ module ActionCable
           @event_target.on_message(data)
         end
 
-        def receive_ping
-          return unless @ready_state == OPEN
-          @event_target.on_ping
+        def check_timeout
+          return false if @ready_state > OPEN
+          client_gone if Time.now - @last_ping > 1.minute
         end
 
-        def ping
-          return false if @ready_state > OPEN
-          @ping_times += 1
-          result = @driver.ping('pong') do
-            @ping_times = 0
-          end
-          client_gone if @ping_times > 5
+        def receive_ping
+          return unless @ready_state == OPEN
+          @last_ping = Time.now
+          @event_target.on_ping
         end
 
         def receive_pong

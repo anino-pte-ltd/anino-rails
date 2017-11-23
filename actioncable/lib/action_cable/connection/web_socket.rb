@@ -19,11 +19,7 @@ module ActionCable
       def transmit(data)
         websocket.transmit data
       end
-
-      def ping
-        websocket.ping
-      end
-
+      
       def close
         websocket.close
       end

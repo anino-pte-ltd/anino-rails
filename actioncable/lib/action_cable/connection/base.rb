@@ -114,11 +114,8 @@ module ActionCable
       end
 
       def beat
-        if websocket.respond_to?(:ping)
-          websocket.ping
-        else
-          transmit type: ActionCable::INTERNAL[:message_types][:ping], message: Time.now.to_i
-        end
+        transmit type: ActionCable::INTERNAL[:message_types][:ping], message: Time.now.to_i
+        websocket.check_timeout
       end
 
       def on_open # :nodoc:
