@@ -135,12 +135,16 @@ module ActionCable
 
         def receive_ping
           return unless @ready_state == OPEN
+          @event_target.on_ping
+        end
+
+        def ping
+          return false if @ready_state > OPEN
           @ping_times += 1
           result = @driver.ping('pong') do
             @ping_times = 0
           end
           client_gone if @ping_times > 5
-          @event_target.on_ping
         end
 
         def receive_pong
