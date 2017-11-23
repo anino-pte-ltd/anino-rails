@@ -41,6 +41,8 @@ module ActionCable
 
         @ready_state = CONNECTING
 
+        @ping_times = 0
+
         # The driver calls +env+, +url+, and +write+
         @driver = ::WebSocket::Driver.rack(self, protocols: protocols)
 
@@ -133,6 +135,11 @@ module ActionCable
 
         def receive_ping
           return unless @ready_state == OPEN
+          @ping_times += 1
+          result = @driver.ping('pong') do
+            @ping_times = 0
+          end
+          client_gone if @ping_times > 5
           @event_target.on_ping
         end
 
