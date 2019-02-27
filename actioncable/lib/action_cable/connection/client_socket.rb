@@ -43,6 +43,8 @@ module ActionCable
 
         @ready_state = CONNECTING
 
+        @ping_times = 0
+
         # The driver calls +env+, +url+, and +write+
         @driver = ::WebSocket::Driver.rack(self, protocols: protocols)
 
@@ -50,6 +52,8 @@ module ActionCable
         @driver.on(:message) { |e| receive_message(e.data) }
         @driver.on(:close)   { |e| begin_close(e.reason, e.code) }
         @driver.on(:error)   { |e| emit_error(e.message) }
+        @driver.on(:ping)   { |e| receive_ping }
+        @driver.on(:pong)   { |e| receive_pong }
 
         @stream = ActionCable::Connection::Stream.new(@event_loop, self)
       end
@@ -129,6 +133,22 @@ module ActionCable
           return unless @ready_state == OPEN
 
           @event_target.on_message(data)
+        end
+
+        def check_timeout
+          return false if @ready_state > OPEN
+          close if Time.now - @last_ping > 1.minute
+        end
+
+        def receive_ping
+          return unless @ready_state == OPEN
+          @last_ping = Time.now
+          @event_target.on_ping
+        end
+        
+        def receive_pong
+          return unless @ready_state == OPEN
+          @event_target.on_pong
         end
 
         def emit_error(message)
