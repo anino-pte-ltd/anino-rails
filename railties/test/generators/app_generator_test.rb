@@ -623,6 +623,22 @@ class AppGeneratorTest < Rails::Generators::TestCase
     end
   end
 
+  def test_inclusion_of_listen_related_configuration_on_other_rubies
+    ruby_engine = Object.send(:remove_const, :RUBY_ENGINE)
+    Object.const_set(:RUBY_ENGINE, "MyRuby")
+    begin
+      run_generator
+      if RbConfig::CONFIG["host_os"] =~ /darwin|linux/
+        assert_listen_related_configuration
+      else
+        assert_no_listen_related_configuration
+      end
+    ensure
+      Object.send(:remove_const, :RUBY_ENGINE)
+      Object.const_set(:RUBY_ENGINE, ruby_engine)
+    end
+  end
+
   def test_non_inclusion_of_listen_related_configuration_if_skip_listen
     run_generator [destination_root, "--skip-listen"]
     assert_no_listen_related_configuration
@@ -717,6 +733,24 @@ class AppGeneratorTest < Rails::Generators::TestCase
 
   def test_generation_runs_bundle_install
     assert_generates_with_bundler
+  end
+
+  def test_generation_use_original_bundle_environment
+    generator([destination_root], skip_webpack_install: true)
+
+    mock_original_env = -> do
+      { "BUNDLE_RUBYONRAILS__ORG" => "user:pass" }
+    end
+
+    ensure_environment_is_set = -> *_args do
+      assert_equal "user:pass", ENV["BUNDLE_RUBYONRAILS__ORG"]
+    end
+
+    Bundler.stub :original_env, mock_original_env do
+      generator.stub :exec_bundle_command, ensure_environment_is_set do
+        quietly { generator.invoke_all }
+      end
+    end
   end
 
   def test_dev_option
@@ -916,6 +950,7 @@ class AppGeneratorTest < Rails::Generators::TestCase
       test/helpers
       test/integration
       tmp
+      tmp/pids
     )
     folders_with_keep.each do |folder|
       assert_file("#{folder}/.keep")

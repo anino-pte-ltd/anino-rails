@@ -232,9 +232,6 @@ module ActiveRecord
 
     def _select!(*fields) # :nodoc:
       fields.flatten!
-      fields.map! do |field|
-        klass.attribute_alias?(field) ? klass.attribute_alias(field).to_sym : field
-      end
       self.select_values += fields
       self
     end
@@ -1051,16 +1048,34 @@ module ActiveRecord
 
       def arel_columns(columns)
         columns.flat_map do |field|
-          if (Symbol === field || String === field) && (klass.has_attribute?(field) || klass.attribute_alias?(field)) && !from_clause.value
-            arel_attribute(field)
-          elsif Symbol === field
-            connection.quote_table_name(field.to_s)
-          elsif Proc === field
+          case field
+          when Symbol
+            arel_column(field.to_s) do |attr_name|
+              connection.quote_table_name(attr_name)
+            end
+          when String
+            arel_column(field, &:itself)
+          when Proc
             field.call
           else
             field
           end
         end
+      end
+
+      def arel_column(field)
+        field = klass.attribute_alias(field) if klass.attribute_alias?(field)
+        from = from_clause.name || from_clause.value
+
+        if klass.columns_hash.key?(field) && (!from || table_name_matches?(from))
+          arel_attribute(field)
+        else
+          yield field
+        end
+      end
+
+      def table_name_matches?(from)
+        /(?:\A|(?<!FROM)\s)(?:\b#{table.name}\b|#{connection.quote_table_name(table.name)})(?!\.)/i.match?(from.to_s)
       end
 
       def reverse_sql_order(order_query)
@@ -1144,20 +1159,30 @@ module ActiveRecord
         order_args.map! do |arg|
           case arg
           when Symbol
-            arel_attribute(arg).asc
+            order_column(arg.to_s).asc
           when Hash
             arg.map { |field, dir|
               case field
               when Arel::Nodes::SqlLiteral
                 field.send(dir.downcase)
               else
-                arel_attribute(field).send(dir.downcase)
+                order_column(field.to_s).send(dir.downcase)
               end
             }
           else
             arg
           end
         end.flatten!
+      end
+
+      def order_column(field)
+        arel_column(field) do |attr_name|
+          if attr_name == "count" && !group_values.empty?
+            arel_attribute(attr_name)
+          else
+            Arel.sql(connection.quote_table_name(attr_name))
+          end
+        end
       end
 
       # Checks to make sure that the arguments are not blank. Note that if some

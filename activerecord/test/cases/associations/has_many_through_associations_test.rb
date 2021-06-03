@@ -33,6 +33,9 @@ require "models/organization"
 require "models/user"
 require "models/family"
 require "models/family_tree"
+require "models/section"
+require "models/seminar"
+require "models/session"
 
 class HasManyThroughAssociationsTest < ActiveRecord::TestCase
   fixtures :posts, :readers, :people, :comments, :authors, :categories, :taggings, :tags,
@@ -192,7 +195,7 @@ class HasManyThroughAssociationsTest < ActiveRecord::TestCase
 
     assert_no_difference "Job.count" do
       assert_difference "Reference.count", -1 do
-        person.reload.jobs_with_dependent_destroy.delete_all
+        assert_equal 1, person.reload.jobs_with_dependent_destroy.delete_all
       end
     end
   end
@@ -203,7 +206,7 @@ class HasManyThroughAssociationsTest < ActiveRecord::TestCase
 
     assert_no_difference "Job.count" do
       assert_no_difference "Reference.count" do
-        person.reload.jobs_with_dependent_nullify.delete_all
+        assert_equal 1, person.reload.jobs_with_dependent_nullify.delete_all
       end
     end
   end
@@ -214,17 +217,26 @@ class HasManyThroughAssociationsTest < ActiveRecord::TestCase
 
     assert_no_difference "Job.count" do
       assert_difference "Reference.count", -1 do
-        person.reload.jobs_with_dependent_delete_all.delete_all
+        assert_equal 1, person.reload.jobs_with_dependent_delete_all.delete_all
       end
     end
+  end
+
+  def test_delete_all_on_association_clears_scope
+    post = Post.create!(title: "Rails 6", body: "")
+    people = post.people
+    people.create!(first_name: "Jeb")
+    people.delete_all
+    assert_nil people.first
   end
 
   def test_concat
     person = people(:david)
     post   = posts(:thinking)
-    post.people.concat [person]
+    result = post.people.concat [person]
     assert_equal 1, post.people.size
     assert_equal 1, post.people.reload.size
+    assert_equal post.people, result
   end
 
   def test_associate_existing_record_twice_should_add_to_target_twice
@@ -385,6 +397,30 @@ class HasManyThroughAssociationsTest < ActiveRecord::TestCase
 
     assert_empty posts(:welcome).reload.people
     assert_empty posts(:welcome).people.reload
+  end
+
+  def test_destroy_all_on_association_clears_scope
+    post = Post.create!(title: "Rails 6", body: "")
+    people = post.people
+    people.create!(first_name: "Jeb")
+    people.destroy_all
+    assert_nil people.first
+  end
+
+  def test_destroy_on_association_clears_scope
+    post = Post.create!(title: "Rails 6", body: "")
+    people = post.people
+    person = people.create!(first_name: "Jeb")
+    people.destroy(person)
+    assert_nil people.first
+  end
+
+  def test_delete_on_association_clears_scope
+    post = Post.create!(title: "Rails 6", body: "")
+    people = post.people
+    person = people.create!(first_name: "Jeb")
+    people.delete(person)
+    assert_nil people.first
   end
 
   def test_should_raise_exception_for_destroying_mismatching_records
@@ -1412,6 +1448,37 @@ class HasManyThroughAssociationsTest < ActiveRecord::TestCase
     subscription2 = Subscription.second
     book2.subscriptions << subscription2
     assert_equal [subscription2], post.subscriptions.to_a
+  end
+
+  def test_child_is_visible_to_join_model_in_add_association_callbacks
+    [:before_add, :after_add].each do |callback_name|
+      sentient_treasure = Class.new(Treasure) do
+        def self.name; "SentientTreasure"; end
+
+        has_many :pet_treasures, foreign_key: :treasure_id, callback_name => :check_pet!
+        has_many :pets, through: :pet_treasures
+
+        def check_pet!(added)
+          raise "No pet!" if added.pet.nil?
+        end
+      end
+
+      treasure = sentient_treasure.new
+      assert_nothing_raised { treasure.pets << pets(:mochi) }
+    end
+  end
+
+  def test_circular_autosave_association_correctly_saves_multiple_records
+    cs180 = Seminar.new(name: "CS180")
+    fall = Session.new(name: "Fall")
+    sections = [
+      cs180.sections.build(short_name: "A"),
+      cs180.sections.build(short_name: "B"),
+    ]
+    fall.sections << sections
+    fall.save!
+    fall.reload
+    assert_equal sections, fall.sections.sort_by(&:id)
   end
 
   private

@@ -736,7 +736,7 @@ module ActionView
       #   def labelled_form_with(**options, &block)
       #     form_with(**options.merge(builder: LabellingFormBuilder), &block)
       #   end
-      def form_with(model: nil, scope: nil, url: nil, format: nil, **options)
+      def form_with(model: nil, scope: nil, url: nil, format: nil, **options, &block)
         options[:allow_method_names_outside_object] = true
         options[:skip_default_ids] = !form_with_generates_ids
 
@@ -749,7 +749,7 @@ module ActionView
 
         if block_given?
           builder = instantiate_builder(scope, model, options)
-          output  = capture(builder, &Proc.new)
+          output  = capture(builder, &block)
           options[:multipart] ||= builder.multipart?
 
           html_options = html_options_for_form_with(url, model, options)
@@ -1971,7 +1971,7 @@ module ActionView
 
         convert_to_legacy_options(options)
 
-        fields_for(scope || model, model, **options, &block)
+        fields_for(scope || model, model, options, &block)
       end
 
       # Returns a label tag tailored for labelling an input field for a specified attribute (identified by +method+) on an object

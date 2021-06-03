@@ -242,6 +242,12 @@ class CalculationsTest < ActiveRecord::TestCase
     assert_queries(1) { assert_equal 11, posts.count(:all) }
   end
 
+  def test_count_with_eager_loading_and_custom_select_and_order
+    posts = Post.includes(:comments).order("comments.id").select(:type)
+    assert_queries(1) { assert_equal 11, posts.count }
+    assert_queries(1) { assert_equal 11, posts.count(:all) }
+  end
+
   def test_count_with_eager_loading_and_custom_order_and_distinct
     posts = Post.includes(:comments).order("comments.id").distinct
     assert_queries(1) { assert_equal 11, posts.count }
@@ -428,6 +434,8 @@ class CalculationsTest < ActiveRecord::TestCase
   def test_should_count_selected_field_with_include
     assert_equal 6, Account.includes(:firm).distinct.count
     assert_equal 4, Account.includes(:firm).distinct.select(:credit_limit).count
+    assert_equal 4, Account.includes(:firm).distinct.count("DISTINCT credit_limit")
+    assert_equal 4, Account.includes(:firm).distinct.count("DISTINCT(credit_limit)")
   end
 
   def test_should_not_perform_joined_include_by_default
@@ -456,6 +464,24 @@ class CalculationsTest < ActiveRecord::TestCase
 
   def test_should_count_manual_select_with_include
     assert_equal 6, Account.select("DISTINCT accounts.id").includes(:firm).count
+  end
+
+  def test_should_count_manual_select_with_count_all
+    assert_equal 5, Account.select("DISTINCT accounts.firm_id").count(:all)
+  end
+
+  def test_should_count_with_manual_distinct_select_and_distinct
+    assert_equal 4, Account.select("DISTINCT accounts.firm_id").distinct(true).count
+  end
+
+  def test_should_count_manual_select_with_group_with_count_all
+    expected = { nil => 1, 1 => 1, 2 => 1, 6 => 2, 9 => 1 }
+    actual = Account.select("DISTINCT accounts.firm_id").group("accounts.firm_id").count(:all)
+    assert_equal expected, actual
+  end
+
+  def test_should_count_manual_with_count_all
+    assert_equal 6, Account.count(:all)
   end
 
   def test_count_selected_arel_attribute
@@ -676,8 +702,9 @@ class CalculationsTest < ActiveRecord::TestCase
   end
 
   def test_pluck_not_auto_table_name_prefix_if_column_joined
-    Company.create!(name: "test", contracts: [Contract.new(developer_id: 7)])
-    assert_equal [7], Company.joins(:contracts).pluck(:developer_id)
+    company = Company.create!(name: "test", contracts: [Contract.new(developer_id: 7)])
+    metadata = company.contracts.first.metadata
+    assert_equal [metadata], Company.joins(:contracts).pluck(:metadata)
   end
 
   def test_pluck_with_selection_clause
@@ -704,6 +731,16 @@ class CalculationsTest < ActiveRecord::TestCase
     assert_equal [5], Topic.includes(:replies).order(:id).offset(4).pluck(:id)
     assert_equal [], Topic.includes(:replies).order(:id).offset(5).pluck(:id)
   end
+
+  def test_pluck_with_join
+    assert_equal [[2, 2], [4, 4]], Reply.includes(:topic).order(:id).pluck(:id, :"topics.id")
+  end
+
+  def test_group_by_with_order_by_virtual_count_attribute
+    expected = { "SpecialPost" => 1, "StiPost" => 2 }
+    actual = Post.group(:type).order(:count).limit(2).maximum(:comments_count)
+    assert_equal expected, actual
+  end if current_adapter?(:PostgreSQLAdapter)
 
   def test_group_by_with_limit
     expected = { "Post" => 8, "SpecialPost" => 1 }
@@ -771,7 +808,7 @@ class CalculationsTest < ActiveRecord::TestCase
 
   def test_pluck_columns_with_same_name
     expected = [["The First Topic", "The Second Topic of the day"], ["The Third Topic of the day", "The Fourth Topic of the day"]]
-    actual = Topic.joins(:replies)
+    actual = Topic.joins(:replies).order(:id)
       .pluck("topics.title", "replies_topics.title")
     assert_equal expected, actual
   end

@@ -1,3 +1,113 @@
+## Rails 5.2.6 (May 05, 2021) ##
+
+*   Accept base64_urlsafe CSRF tokens to make forward compatible.
+
+    Base64 strict-encoded CSRF tokens are not inherently websafe, which makes
+    them difficult to deal with. For example, the common practice of sending
+    the CSRF token to a browser in a client-readable cookie does not work properly
+    out of the box: the value has to be url-encoded and decoded to survive transport.
+
+    In this version, we generate Base64 urlsafe-encoded CSRF tokens, which are inherently
+    safe to transport. Validation accepts both urlsafe tokens, and strict-encoded
+    tokens for backwards compatibility.
+
+    How the tokes are encoded is controllr by the `action_controller.urlsafe_csrf_tokens`
+    config.
+
+    In Rails 5.2.5, the CSRF token format was accidentally changed to urlsafe-encoded.
+
+    **Atention**: If you already upgraded your application to 5.2.5, set the config
+    `urlsafe_csrf_tokens` to `true`, otherwise your form submission will start to fail
+    during the deploy of this new version.
+
+    ```ruby
+    Rails.application.config.action_controller.urlsafe_csrf_tokens = true
+    ```
+
+    If you are upgrading from 5.2.4.x, you don't need to change this configuration.
+
+    *Scott Blum*, *Étienne Barrié*
+
+
+## Rails 5.2.5 (March 26, 2021) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.6 (May 05, 2021) ##
+
+*   Prevent regex DoS in HTTP token authentication
+    CVE-2021-22904
+
+*   Prevent string polymorphic route arguments.
+
+    `url_for` supports building polymorphic URLs via an array
+    of arguments (usually symbols and records). If a developer passes a
+    user input array, strings can result in unwanted route helper calls.
+
+    CVE-2021-22885
+
+    *Gannon McGibbon*
+
+## Rails 5.2.4.5 (February 10, 2021) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.4 (September 09, 2020) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.3 (May 18, 2020) ##
+
+*   [CVE-2020-8166] HMAC raw CSRF token before masking it, so it cannot be used to reconstruct a per-form token
+
+*   [CVE-2020-8164] Return self when calling #each, #each_pair, and #each_value instead of the raw @parameters hash
+
+
+## Rails 5.2.4.2 (March 19, 2020) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.1 (December 18, 2019) ##
+
+*   Fix possible information leak / session hijacking vulnerability.
+
+    The `ActionDispatch::Session::MemcacheStore` is still vulnerable given it requires the
+    gem dalli to be updated as well.
+
+    _Breaking changes:_
+    *   `session.id` now returns an instance of `Rack::Session::SessionId` and not a String (use `session.id.public_id` to restore the old behaviour, see #38063)
+    *   Accessing the session id using `session[:session_id]`/`session['session_id']` no longer works with
+        ruby 2.2 (see https://github.com/rails/rails/commit/2a52a38cb51b65d71cf91fc960777213cf96f962#commitcomment-37929811)
+
+    CVE-2019-16782.
+
+
+## Rails 5.2.4 (November 27, 2019) ##
+
+*   No changes.
+
+
+## Rails 5.2.3 (March 27, 2019) ##
+
+*   Allow using `public` and `no-cache` together in the the Cache Control header.
+
+    Before this change, even if `public` was specified in the Cache Control header,
+    it was excluded when `no-cache` was included. This change preserves the
+    `public` value as is.
+
+    Fixes #34780.
+
+    *Yuji Yaginuma*
+
+*   Allow `nil` params for `ActionController::TestCase`.
+
+    *Ryo Nakamura*
+
+
 ## Rails 5.2.2.1 (March 11, 2019) ##
 
 *   No changes.
@@ -168,6 +278,34 @@
     *Andrew White*
 
 *   Matches behavior of `Hash#each` in `ActionController::Parameters#each`.
+
+    Rails 5.0 introduced a bug when looping through controller params using `each`. Only the keys of params hash were passed to the block, e.g.
+
+        # Parameters: {"param"=>"1", "param_two"=>"2"}
+        def index
+          params.each do |name|
+            puts name
+          end
+        end
+
+        # Prints
+        # param
+        # param_two
+
+    In Rails 5.2 the bug has been fixed and name will be an array (which was the behavior for all versions prior to 5.0), instead of a string.
+
+    To fix the code above simply change as per example below:
+
+        # Parameters: {"param"=>"1", "param_two"=>"2"}
+        def index
+          params.each do |name, value|
+            puts name
+          end
+        end
+
+        # Prints
+        # param
+        # param_two
 
     *Dominic Cleal*
 

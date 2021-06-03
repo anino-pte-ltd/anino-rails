@@ -1,3 +1,77 @@
+## Rails 5.2.6 (May 05, 2021) ##
+
+*   No changes.
+
+
+## Rails 5.2.5 (March 26, 2021) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.6 (May 05, 2021) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.5 (February 10, 2021) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.4 (September 09, 2020) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.3 (May 18, 2020) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.2 (March 19, 2020) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.1 (December 18, 2019) ##
+
+*   No changes.
+
+
+## Rails 5.2.4 (November 27, 2019) ##
+
+*   Type cast falsy boolean symbols on boolean attribute as false.
+
+    Fixes #35676.
+
+    *Ryuta Kamizono*
+
+
+## Rails 5.2.3 (March 27, 2019) ##
+
+*   Fix date value when casting a multiparameter date hash to not convert
+    from Gregorian date to Julian date.
+
+    Before:
+
+        Day.new({"day(1i)"=>"1", "day(2i)"=>"1", "day(3i)"=>"1"})
+        => #<Day id: nil, day: "0001-01-03", created_at: nil, updated_at: nil>
+
+    After:
+
+        Day.new({"day(1i)"=>"1", "day(2i)"=>"1", "day(3i)"=>"1"})
+        => #<Day id: nil, day: "0001-01-01", created_at: nil, updated_at: nil>
+
+    Fixes #28521.
+
+    *Sayan Chakraborty*
+
+*   Fix numericality equality validation of `BigDecimal` and `Float`
+    by casting to `BigDecimal` on both ends of the validation.
+
+    *Gannon McGibbon*
+
+
 ## Rails 5.2.2.1 (March 11, 2019) ##
 
 *   No changes.

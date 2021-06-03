@@ -13,6 +13,7 @@ require "models/project"
 require "models/computer"
 require "models/reply"
 require "models/company"
+require "models/contract"
 require "models/bird"
 require "models/car"
 require "models/engine"
@@ -186,15 +187,64 @@ class RelationTest < ActiveRecord::TestCase
     end
   end
 
+  def test_select_with_from_includes_original_table_name
+    relation = Comment.joins(:post).select(:id).order(:id)
+    subquery = Comment.from("#{Comment.table_name} /*! USE INDEX (PRIMARY) */").joins(:post).select(:id).order(:id)
+    assert_equal relation.map(&:id), subquery.map(&:id)
+  end
+
+  def test_pluck_with_from_includes_original_table_name
+    relation = Comment.joins(:post).order(:id)
+    subquery = Comment.from("#{Comment.table_name} /*! USE INDEX (PRIMARY) */").joins(:post).order(:id)
+    assert_equal relation.pluck(:id), subquery.pluck(:id)
+  end
+
+  def test_select_with_from_includes_quoted_original_table_name
+    relation = Comment.joins(:post).select(:id).order(:id)
+    subquery = Comment.from("#{Comment.quoted_table_name} /*! USE INDEX (PRIMARY) */").joins(:post).select(:id).order(:id)
+    assert_equal relation.map(&:id), subquery.map(&:id)
+  end
+
+  def test_pluck_with_from_includes_quoted_original_table_name
+    relation = Comment.joins(:post).order(:id)
+    subquery = Comment.from("#{Comment.quoted_table_name} /*! USE INDEX (PRIMARY) */").joins(:post).order(:id)
+    assert_equal relation.pluck(:id), subquery.pluck(:id)
+  end
+
+  def test_select_with_subquery_in_from_uses_original_table_name
+    relation = Comment.joins(:post).select(:id).order(:id)
+    # Avoid subquery flattening by adding distinct to work with SQLite < 3.20.0.
+    subquery = Comment.from(Comment.all.distinct, Comment.quoted_table_name).joins(:post).select(:id).order(:id)
+    assert_equal relation.map(&:id), subquery.map(&:id)
+  end
+
+  def test_pluck_with_subquery_in_from_uses_original_table_name
+    relation = Comment.joins(:post).order(:id)
+    subquery = Comment.from(Comment.all, Comment.quoted_table_name).joins(:post).order(:id)
+    assert_equal relation.pluck(:id), subquery.pluck(:id)
+  end
+
   def test_select_with_subquery_in_from_does_not_use_original_table_name
     relation = Comment.group(:type).select("COUNT(post_id) AS post_count, type")
-    subquery = Comment.from(relation).select("type", "post_count")
+    subquery = Comment.from(relation, "grouped_#{Comment.table_name}").select("type", "post_count")
     assert_equal(relation.map(&:post_count).sort, subquery.map(&:post_count).sort)
   end
 
   def test_group_with_subquery_in_from_does_not_use_original_table_name
     relation = Comment.group(:type).select("COUNT(post_id) AS post_count,type")
-    subquery = Comment.from(relation).group("type").average("post_count")
+    subquery = Comment.from(relation, "grouped_#{Comment.table_name}").group("type").average("post_count")
+    assert_equal(relation.map(&:post_count).sort, subquery.values.sort)
+  end
+
+  def test_select_with_subquery_string_in_from_does_not_use_original_table_name
+    relation = Comment.group(:type).select("COUNT(post_id) AS post_count, type")
+    subquery = Comment.from("(#{relation.to_sql}) #{Comment.table_name}_grouped").select("type", "post_count")
+    assert_equal(relation.map(&:post_count).sort, subquery.map(&:post_count).sort)
+  end
+
+  def test_group_with_subquery_string_in_from_does_not_use_original_table_name
+    relation = Comment.group(:type).select("COUNT(post_id) AS post_count,type")
+    subquery = Comment.from("(#{relation.to_sql}) #{Comment.table_name}_grouped").group("type").average("post_count")
     assert_equal(relation.map(&:post_count).sort, subquery.values.sort)
   end
 
@@ -253,13 +303,13 @@ class RelationTest < ActiveRecord::TestCase
   end
 
   def test_reverse_order_with_function
-    topics = Topic.order(Arel.sql("length(title)")).reverse_order
-    assert_equal topics(:second).title, topics.first.title
+    topics = Topic.order(Arel.sql("lower(title)")).reverse_order
+    assert_equal topics(:third).title, topics.first.title
   end
 
   def test_reverse_arel_assoc_order_with_function
-    topics = Topic.order(Arel.sql("length(title)") => :asc).reverse_order
-    assert_equal topics(:second).title, topics.first.title
+    topics = Topic.order(Arel.sql("lower(title)") => :asc).reverse_order
+    assert_equal topics(:third).title, topics.first.title
   end
 
   def test_reverse_order_with_function_other_predicates
@@ -978,10 +1028,23 @@ class RelationTest < ActiveRecord::TestCase
     assert_queries(1) { assert_equal 11, posts.load.size }
   end
 
+  def test_size_with_eager_loading_and_custom_select_and_order
+    posts = Post.includes(:comments).order("comments.id").select(:type)
+    assert_queries(1) { assert_equal 11, posts.size }
+    assert_queries(1) { assert_equal 11, posts.load.size }
+  end
+
   def test_size_with_eager_loading_and_custom_order_and_distinct
     posts = Post.includes(:comments).order("comments.id").distinct
     assert_queries(1) { assert_equal 11, posts.size }
     assert_queries(1) { assert_equal 11, posts.load.size }
+  end
+
+  def test_size_with_eager_loading_and_manual_distinct_select_and_custom_order
+    accounts = Account.select("DISTINCT accounts.firm_id").order("accounts.firm_id")
+
+    assert_queries(1) { assert_equal 5, accounts.size }
+    assert_queries(1) { assert_equal 5, accounts.load.size }
   end
 
   def test_update_all_with_scope
@@ -1882,6 +1945,19 @@ class RelationTest < ActiveRecord::TestCase
     assert_equal [1, 1, 1], posts.map(&:author_address_id)
   end
 
+  test "joins with select custom attribute" do
+    contract = Company.create!(name: "test").contracts.create!
+    company = Company.joins(:contracts).select(:id, :metadata).find(contract.company_id)
+    assert_equal contract.metadata, company.metadata
+  end
+
+  test "joins with order by custom attribute" do
+    companies = Company.create!([{ name: "test1" }, { name: "test2" }])
+    companies.each { |company| company.contracts.create! }
+    assert_equal companies, Company.joins(:contracts).order(:metadata, :count)
+    assert_equal companies.reverse, Company.joins(:contracts).order(metadata: :desc, count: :desc)
+  end
+
   test "delegations do not leak to other classes" do
     Topic.all.by_lifo
     assert Topic.all.class.method_defined?(:by_lifo)
@@ -1915,7 +1991,7 @@ class RelationTest < ActiveRecord::TestCase
   end
 
   def test_relation_join_method
-    assert_equal "Thank you for the welcome,Thank you again for the welcome", Post.first.comments.join(",")
+    assert_equal "Thank you for the welcome,Thank you again for the welcome", Post.first.comments.order(:id).join(",")
   end
 
   def test_relation_with_private_kernel_method

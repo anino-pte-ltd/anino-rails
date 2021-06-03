@@ -32,17 +32,17 @@ module ActiveRecord
         end
 
         def enable_query_cache!
-          @query_cache_enabled[connection_cache_key(Thread.current)] = true
+          @query_cache_enabled[connection_cache_key(current_thread)] = true
           connection.enable_query_cache! if active_connection?
         end
 
         def disable_query_cache!
-          @query_cache_enabled.delete connection_cache_key(Thread.current)
+          @query_cache_enabled.delete connection_cache_key(current_thread)
           connection.disable_query_cache! if active_connection?
         end
 
         def query_cache_enabled
-          @query_cache_enabled[connection_cache_key(Thread.current)]
+          @query_cache_enabled[connection_cache_key(current_thread)]
         end
       end
 
@@ -96,6 +96,11 @@ module ActiveRecord
         if @query_cache_enabled && !locked?(arel)
           arel = arel_from_relation(arel)
           sql, binds = to_sql_and_binds(arel, binds)
+
+          if preparable.nil?
+            preparable = prepared_statements ? visitor.preparable : false
+          end
+
           cache_sql(sql, name, binds) { super(sql, name, binds, preparable: preparable) }
         else
           super

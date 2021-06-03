@@ -1,3 +1,129 @@
+## Rails 5.2.6 (May 05, 2021) ##
+
+*   No changes.
+
+
+## Rails 5.2.5 (March 26, 2021) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.6 (May 05, 2021) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.5 (February 10, 2021) ##
+
+*   Fix possible DoS vector in PostgreSQL money type
+
+    Carefully crafted input can cause a DoS via the regular expressions used
+    for validating the money format in the PostgreSQL adapter.  This patch
+    fixes the regexp.
+
+    Thanks to @dee-see from Hackerone for this patch!
+
+    [CVE-2021-22880]
+
+    *Aaron Patterson*
+
+
+## Rails 5.2.4.4 (September 09, 2020) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.3 (May 18, 2020) ##
+
+*   No changes.
+
+## Rails 5.2.4.2 (March 19, 2020) ##
+
+*   No changes.
+
+
+## Rails 5.2.4.1 (December 18, 2019) ##
+
+*   No changes.
+
+
+## Rails 5.2.4 (November 27, 2019) ##
+
+*   Fix circular `autosave: true` causes invalid records to be saved.
+
+    Prior to the fix, when there was a circular series of `autosave: true`
+    associations, the callback for a `has_many` association was run while
+    another instance of the same callback on the same association hadn't
+    finished running. When control returned to the first instance of the
+    callback, the instance variable had changed, and subsequent associated
+    records weren't saved correctly. Specifically, the ID field for the
+    `belongs_to` corresponding to the `has_many` was `nil`.
+
+    Fixes #28080.
+
+    *Larry Reid*
+
+*   PostgreSQL: Fix GROUP BY with ORDER BY virtual count attribute.
+
+    Fixes #36022.
+
+    *Ryuta Kamizono*
+
+*   Fix sqlite3 collation parsing when using decimal columns.
+
+    *Martin R. Schuster*
+
+*   Make ActiveRecord `ConnectionPool.connections` method thread-safe.
+
+    Fixes #36465.
+
+    *Jeff Doering*
+
+*   Assign all attributes before calling `build` to ensure the child record is visible in
+    `before_add` and `after_add` callbacks for `has_many :through` associations.
+
+    Fixes #33249.
+
+    *Ryan H. Kerr*
+
+
+## Rails 5.2.3 (March 27, 2019) ##
+
+*   Fix different `count` calculation when using `size` with manual `select` with DISTINCT.
+
+    Fixes #35214.
+
+    *Juani Villarejo*
+
+*   Fix prepared statements caching to be enabled even when query caching is enabled.
+
+    *Ryuta Kamizono*
+
+*   Don't allow `where` with invalid value matches to nil values.
+
+    Fixes #33624.
+
+    *Ryuta Kamizono*
+
+*   Restore an ability that class level `update` without giving ids.
+
+    Fixes #34743.
+
+    *Ryuta Kamizono*
+
+*   Fix join table column quoting with SQLite.
+
+    *Gannon McGibbon*
+
+*   Ensure that `delete_all` on collection proxy returns affected count.
+
+    *Ryuta Kamizono*
+
+*   Reset scope after delete on collection association to clear stale offsets of removed records.
+
+    *Gannon McGibbon*
+
+
 ## Rails 5.2.2.1 (March 11, 2019) ##
 
 *   No changes.
